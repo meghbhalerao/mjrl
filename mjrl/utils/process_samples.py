@@ -40,5 +40,4 @@ def discount_sum(x, gamma, terminal=0.0):
     for t in range( len(x)-1, -1, -1):
         run_sum = x[t] + gamma*run_sum
         y.append(run_sum)
-
     return np.array(y[::-1])

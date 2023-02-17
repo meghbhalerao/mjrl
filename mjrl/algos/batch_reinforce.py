@@ -56,18 +56,8 @@ class BatchREINFORCE:
         vpg_grad = torch.autograd.grad(cpi_surr, self.policy.trainable_params)
         vpg_grad = np.concatenate([g.contiguous().view(-1).data.numpy() for g in vpg_grad])
         return vpg_grad
-
     # ----------------------------------------------------------
-    def train_step(self, N,
-                   env=None,
-                   sample_mode='trajectories',
-                   horizon=1e6,
-                   gamma=0.995,
-                   gae_lambda=0.97,
-                   num_cpu='max',
-                   env_kwargs=None,
-                   ):
-
+    def train_step(self, N, env=None, sample_mode='trajectories', horizon=1e6,gamma=0.995, gae_lambda=0.97, num_cpu='max', env_kwargs=None, job_args = None):
         # Clean up input arguments
         env = self.env.env_id if env is None else env
         if sample_mode != 'trajectories' and sample_mode != 'samples':
@@ -77,12 +67,11 @@ class BatchREINFORCE:
         ts = timer.time()
 
         if sample_mode == 'trajectories':
-            input_dict = dict(num_traj=N, env=env, policy=self.policy, horizon=horizon,
-                              base_seed=self.seed, num_cpu=num_cpu, env_kwargs=env_kwargs)
+            input_dict = dict(num_traj=N, env=env, policy=self.policy, horizon=horizon, base_seed=self.seed, num_cpu=num_cpu, env_kwargs=env_kwargs, job_args = job_args)
             paths = trajectory_sampler.sample_paths(**input_dict)
+
         elif sample_mode == 'samples':
-            input_dict = dict(num_samples=N, env=env, policy=self.policy, horizon=horizon,
-                              base_seed=self.seed, num_cpu=num_cpu, env_kwargs=env_kwargs)
+            input_dict = dict(num_samples=N, env=env, policy=self.policy, horizon=horizon, base_seed=self.seed, num_cpu=num_cpu, env_kwargs=env_kwargs)
             paths = trajectory_sampler.sample_data_batch(**input_dict)
 
         if self.save_logs:
@@ -105,7 +94,7 @@ class BatchREINFORCE:
         if self.save_logs:
             ts = timer.time()
             error_before, error_after = self.baseline.fit(paths, return_errors=True)
-            self.logger.log_kv('time_VF', timer.time()-ts)
+            self.logger.log_kv('time_VF', timer.time() - ts)
             self.logger.log_kv('VF_error_before', error_before)
             self.logger.log_kv('VF_error_after', error_after)
         else:
@@ -115,7 +104,6 @@ class BatchREINFORCE:
 
     # ----------------------------------------------------------
     def train_from_paths(self, paths):
-
         observations, actions, advantages, base_stats, self.running_score = self.process_paths(paths)
         if self.save_logs: self.log_rollout_statistics(paths)
 
@@ -191,9 +179,7 @@ class BatchREINFORCE:
         min_return = np.amin(path_returns)
         max_return = np.amax(path_returns)
         base_stats = [mean_return, std_return, min_return, max_return]
-        running_score = mean_return if self.running_score is None else \
-                        0.9 * self.running_score + 0.1 * mean_return
-
+        running_score = mean_return if self.running_score is None else 0.9 * self.running_score + 0.1 * mean_return
         return observations, actions, advantages, base_stats, running_score
 
 

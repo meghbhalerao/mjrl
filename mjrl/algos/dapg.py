@@ -33,8 +33,7 @@ class DAPG(NPG):
                  kl_dist=None,
                  lam_0=1.0,  # demo coef
                  lam_1=0.95, # decay coef
-                 **kwargs,
-                 ):
+                 **kwargs,):
 
         self.env = env
         self.policy = policy
@@ -52,7 +51,6 @@ class DAPG(NPG):
         if save_logs: self.logger = DataLog()
 
     def train_from_paths(self, paths):
-
         # Concatenate from all the trajectories
         observations = np.concatenate([path["observations"] for path in paths])
         actions = np.concatenate([path["actions"] for path in paths])
@@ -80,8 +78,7 @@ class DAPG(NPG):
         min_return = np.amin(path_returns)
         max_return = np.amax(path_returns)
         base_stats = [mean_return, std_return, min_return, max_return]
-        self.running_score = mean_return if self.running_score is None else \
-                             0.9*self.running_score + 0.1*mean_return  # approx avg of last 10 iters
+        self.running_score = mean_return if self.running_score is None else 0.9*self.running_score + 0.1*mean_return  # approx avg of last 10 iters
         if self.save_logs: self.log_rollout_statistics(paths)
 
         # Keep track of times for various computations
@@ -100,10 +97,8 @@ class DAPG(NPG):
 
         # NPG
         ts = timer.time()
-        hvp = self.build_Hvp_eval([observations, actions],
-                                  regu_coef=self.FIM_invert_args['damping'])
-        npg_grad = cg_solve(hvp, dapg_grad, x_0=dapg_grad.copy(),
-                            cg_iters=self.FIM_invert_args['iters'])
+        hvp = self.build_Hvp_eval([observations, actions], regu_coef=self.FIM_invert_args['damping'])
+        npg_grad = cg_solve(hvp, dapg_grad, x_0=dapg_grad.copy(),cg_iters=self.FIM_invert_args['iters'])
         t_FIM += timer.time() - ts
 
         # Step size computation

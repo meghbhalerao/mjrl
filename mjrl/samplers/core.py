@@ -11,18 +11,9 @@ import gc
 
 # Single core rollout to sample trajectories
 # =======================================================
-def do_rollout(
-        num_traj,
-        env,
-        policy,
-        eval_mode = False,
-        horizon = 1e6,
-        base_seed = None,
-        env_kwargs=None,
-        device_id=0,
-):
+def do_rollout(num_traj, env, policy, eval_mode = False, horizon = 1e6, base_seed = None, env_kwargs=None, device_id=0, job_args = None):
     """
-    :param num_traj:    number of trajectories (int)
+    :param num_traj:  number of trajectories (int)
     :param env:         environment (env class, str with env_name, or factory function)
     :param policy:      policy to use for action selection
     :param eval_mode:   use evaluation mode for action computation (bool)
@@ -33,11 +24,12 @@ def do_rollout(
     """
 
     # get the correct env behavior
+    print("Environment is", env)
     if type(env) == str:
         env = GymEnv(env)
         if env_kwargs and 'rrl_kwargs' in env_kwargs:
             from rrl.multicam import RRL
-            env = RRL(env, **env_kwargs['rrl_kwargs'], device_id=device_id)
+            env = RRL(env, **env_kwargs['rrl_kwargs'], device_id=device_id, job_args = job_args)
     elif isinstance(env, GymEnv):
         env = env
     elif callable(env):
@@ -52,6 +44,7 @@ def do_rollout(
     else:
         np.random.seed()
     horizon = min(horizon, env.horizon)
+    print("Horizon Length is ", horizon)
     paths = []
 
     for ep in range(num_traj):
@@ -93,8 +86,7 @@ def do_rollout(
             rewards=np.array(rewards),
             agent_infos=tensor_utils.stack_tensor_dict_list(agent_infos),
             env_infos=tensor_utils.stack_tensor_dict_list(env_infos),
-            terminated=done
-        )
+            terminated=done)
         paths.append(path)
 
     del(env)
@@ -109,21 +101,14 @@ def sample_paths(
         eval_mode = False,
         horizon = 1e6,
         base_seed = None,
-        num_cpu = 1,
-        max_process_time=3000,
-        max_timeouts=4,
-        suppress_print=False,
-        env_kwargs=None,
-        ):
+        num_cpu = 1, max_process_time=3000, max_timeouts=4, suppress_print=False, env_kwargs=None, job_args = None):
 
     num_cpu = 1 if num_cpu is None else num_cpu
     num_cpu = mp.cpu_count() if num_cpu == 'max' else num_cpu
     assert type(num_cpu) == int
-
+    print("Number of CPU is", num_cpu)
     if num_cpu == 1:
-        input_dict = dict(num_traj=num_traj, env=env, policy=policy,
-                          eval_mode=eval_mode, horizon=horizon, base_seed=base_seed,
-                          env_kwargs=env_kwargs)
+        input_dict = dict(num_traj=num_traj, env=env, policy=policy, eval_mode=eval_mode, horizon=horizon, base_seed=base_seed, env_kwargs=env_kwargs, job_args = job_args)
         # dont invoke multiprocessing if not necessary
         return do_rollout(**input_dict)
 
@@ -131,17 +116,13 @@ def sample_paths(
     paths_per_cpu = int(np.ceil(num_traj/num_cpu))
     input_dict_list= []
     for i in range(num_cpu):
-        input_dict = dict(num_traj=paths_per_cpu, env=env, policy=policy,
-                          eval_mode=eval_mode, horizon=horizon,
-                          base_seed=base_seed + i * paths_per_cpu,
-                          env_kwargs=env_kwargs, device_id=i)
+        input_dict = dict(num_traj=paths_per_cpu, env=env, policy=policy, eval_mode=eval_mode, horizon=horizon, base_seed=base_seed + i * paths_per_cpu, env_kwargs=env_kwargs, device_id=i, job_args = job_args)
         input_dict_list.append(input_dict)
     if suppress_print is False:
         start_time = timer.time()
         print("####### Gathering Samples #######")
 
-    results = _try_multiprocess(do_rollout, input_dict_list,
-                                num_cpu, max_process_time, max_timeouts)
+    results = _try_multiprocess(do_rollout, input_dict_list, num_cpu, max_process_time, max_timeouts)
     paths = []
     # result is a paths type and results is list of paths
     for result in results:
@@ -164,7 +145,7 @@ def sample_data_batch(
         num_cpu = 1,
         paths_per_call = 1,
         env_kwargs=None,
-        ):
+        job_args = None):
 
     num_cpu = 1 if num_cpu is None else num_cpu
     num_cpu = mp.cpu_count() if num_cpu == 'max' else num_cpu
@@ -178,9 +159,7 @@ def sample_data_batch(
     base_seed = 123 if base_seed is None else base_seed
     while sampled_so_far < num_samples:
         base_seed = base_seed + 12345
-        new_paths = sample_paths(paths_per_call * num_cpu, env, policy,
-                                 eval_mode, horizon, base_seed, num_cpu,
-                                 suppress_print=True, env_kwargs=env_kwargs)
+        new_paths = sample_paths(paths_per_call * num_cpu, env, policy, eval_mode, horizon, base_seed, num_cpu,suppress_print=True, env_kwargs=env_kwargs, job_args = job_args)
         for path in new_paths:
             paths.append(path)
         paths_so_far += len(new_paths)
